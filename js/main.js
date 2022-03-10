@@ -1,4 +1,4 @@
-let mainPuyo;
+let mainPuyo = [];
 /*==================
 	Config
 ====================*/
@@ -74,19 +74,6 @@ class Draw extends Layer {
   eraseLayer() {
     this.layer2ctx.clearRect(0, 0, this.layer2.width, this.layer2.height);
   }
-
-  // erasePuyo(stageX, stageY) {
-  //   let x = Config.stageBaseX + stageX * (Config.puyoImgWidth + Config.puyoImgPadding);
-  //   let y = Config.stageBaseY + stageY * (Config.puyoImgHeight + Config.puyoImgPadding);
-
-  //   this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
-  // }
-
-  // erasePuyoArray(array) {
-  //   array.forEach((val) => {
-  //     this.erasePuyo(val[1], val[2]);
-  //   });
-  // }
 }
 
 /*==================
@@ -94,93 +81,88 @@ class Draw extends Layer {
 ====================*/
 class Init {
   constructor() {
-    // ステージを描画
+    // ステージ設定
     let draw = new Draw(true);
     let img = new Image();
     img.src = Config.charaSrc;
     draw.stage(img);
 
     // メインぷよ設定（色はランダム）
-    let puyo1 = this.getRandomPuyo();
-    let puyo2 = this.getRandomPuyo();
-    mainPuyo = [
-      [puyo1[0], puyo1[1], 2, 0],
-      [puyo2[0], puyo2[1], 2, 1],
-    ]
+    this.setMainPuyo(2, 0);
+    this.setMainPuyo(2, 1);
 
     // メインぷよ描画
     draw.puyo(mainPuyo);
   }
 
-  getRandomPuyo() {
+  setMainPuyo(stageX, stageY) {
     let img = new Image();
     let color = Math.floor(Math.random() * Config.puyoKind);
+    img.src = (() => {      
+      switch (color) {      
+        case 0:
+          return Config.puyoBlueSrc;
+        case 1:
+          return Config.puyoGreenSrc;
+        case 2:
+          return Config.puyoRedSrc;
+        case 3:
+          return Config.puyoYellowSrc;
+      }
+    })();
 
-    switch (color) {      
-      case 0:
-        img.src = Config.puyoBlueSrc;        
-        break;
-      case 1:
-        img.src = Config.puyoGreenSrc;
-        break;
-      case 2:
-        img.src = Config.puyoRedSrc;
-        break;
-      case 3:
-        img.src = Config.puyoYellowSrc;
-    }
-
-    return [img, color];
+    mainPuyo.push([img, color, stageX, stageY]);
   }
 }
 
 /*==================
 	Operation
 ====================*/
-class Operation {
-  constructor() {
-    this.draw = new Draw();
-  }
-
-  moveDown() {
-    alert('下');
-  }
-
-  moveLeft() {
-    alert('左');
-  }
-
-  moveRight() {
-    alert('右');
-  }  
-}
-
 window.onkeydown = (e) => {
-  let ope = new Operation();
+  let draw = new Draw();
+  let cnt = 0;
+  let speed = 5;
+
+  move = (direction) => {
+    loop = () => {
+      if (cnt >= speed) return;
+      switch (direction) {      
+        case 'down':
+          mainPuyo[0][3] = mainPuyo[0][3] + 1 / speed;
+          mainPuyo[1][3] = mainPuyo[1][3] + 1 / speed;
+          break;
+        case 'left':
+          mainPuyo[0][2] = mainPuyo[0][2] - 1 / speed;
+          mainPuyo[1][2] = mainPuyo[1][2] - 1 / speed;
+          break;
+        case 'right':
+          mainPuyo[0][2] = mainPuyo[0][2] + 1 / speed;
+          mainPuyo[1][2] = mainPuyo[1][2] + 1 / speed;
+      }
+      draw.eraseLayer();
+      draw.puyo(mainPuyo);
+      requestAnimationFrame(loop);
+      cnt++;
+    }
+    loop();
+  }
+
   switch (e.keyCode) {
     case 40: // 下移動
-    ope.moveDown();
+    this.move('down');
     break;
 
     case 37: // 左移動
-    ope.moveLeft();
+    this.move('left');
     break;
 
     case 39: // 右移動
-    ope.moveRight();
+    this.move('right');
   }
 };
 
 window.addEventListener("load", () => {
   new Init();
-  
-  let draw = new Draw();
-  loop = () => {
-    draw.eraseLayer();
-    draw.puyo(mainPuyo);
-    requestAnimationFrame(loop);
-  }
-  loop();
 });
 
 /*==================
