@@ -78,16 +78,34 @@ class Draw extends Layer {
     });
   }
 
-  // eraseLayer() {
-  //   this.layer2ctx.clearRect(0, 0, this.layer2.width, this.layer2.height);
-  // }
-  eraseLayer() {
+  erasePuyo() {
     let x1 = Config.stageBaseX + Config.puyoImgWidth * mainPuyo[1].x / 1;
     let y1 = Config.stageBaseY + Config.puyoImgHeight * mainPuyo[1].y / 1;
-    let x2= Config.stageBaseX + Config.puyoImgWidth * mainPuyo[2].x / 1;
-    let y2 = Config.stageBaseY + Config.puyoImgHeight * mainPuyo[2].y / 1;
     this.layer2ctx.clearRect(x1, y1, Config.puyoImgWidth, Config.puyoImgHeight);
+
+    let x2= Config.stageBaseX + Config.puyoImgWidth * mainPuyo[2].x / 1;
+    let y2 = Config.stageBaseY + Config.puyoImgHeight * mainPuyo[2].y / 1;    
     this.layer2ctx.clearRect(x2, y2, Config.puyoImgWidth, Config.puyoImgHeight);
+  }
+  
+  render(array) {
+    for(let coord of array) {
+      let x = Config.stageBaseX + Config.puyoImgWidth * coord[0];
+      let y = Config.stageBaseY + Config.puyoImgHeight * coord[1];
+      
+      let flag = true;
+      let newY = coord[1];
+      while(flag) {        
+        if(stage[newY + 1][coord[0]] == 0) {
+          newY++;
+        } else {
+          this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
+          let YY = Config.stageBaseY + Config.puyoImgHeight * newY;
+          this.image(this.layer2ctx, stage[coord[1]][coord[0]].img, x, YY); // 本来はアニメーション
+          flag = false;
+        }
+      }
+    }
   }
 }
 
@@ -97,9 +115,11 @@ class Draw extends Layer {
 class Init {
   constructor() {
     this.draw = new Draw(true);
+    this.nextTurn = new NextTurn();
     
-    this.setStage();    // ステージ設定
-    this.setMainPuyo(); // メインぷよ設定
+    this.setStage();             // ステージ設定
+    this.nextTurn.setMainPuyo(); // メインぷよ設定
+    this.draw.puyo(mainPuyo);
   }
 
   setStage() {
@@ -125,19 +145,52 @@ class Init {
     ];
   }
 
+  
+}
+/*==================
+	Stage
+====================*/
+class Stage {
+  constructor() {
+    this.draw = new Draw();
+    this.fallingPuyoList = [];
+  }
   setMainPuyo() {
-     let makePuyo = (position) => {
+    stage[mainPuyo[1].y][mainPuyo[1].x] = mainPuyo[1]
+    stage[mainPuyo[2].y][mainPuyo[2].x] = mainPuyo[2]
+  }
+
+  getFallingPuyoList() {
+    for (let i = 1; i < 7; i++) {
+      let isFalling = false;
+      stage.slice(1, 13).reverse().map((col, j) => {
+        if (col[i] == 0) isFalling = true;
+        if (isFalling && col[i] != 0) {
+          this.fallingPuyoList.push([i, 12 - j]);
+        }
+      })
+    }
+    this.draw.render(this.fallingPuyoList);
+  }
+}
+
+/*==================
+	NextTurn
+====================*/
+class NextTurn {
+  setMainPuyo() {
+    let makePuyo = (position) => {
       let img = new Image();
-      let color = Math.floor(Math.random() * Config.puyoKind);
+      let color = Math.floor(Math.random() * Config.puyoKind) + 1;
       img.src = (() => {      
         switch (color) {      
-          case 0:
-            return Config.puyoBlueSrc;
           case 1:
-            return Config.puyoGreenSrc;
+            return Config.puyoBlueSrc;
           case 2:
-            return Config.puyoRedSrc;
+            return Config.puyoGreenSrc;
           case 3:
+            return Config.puyoRedSrc;
+          case 4:
             return Config.puyoYellowSrc;
         }
       })();
@@ -148,22 +201,13 @@ class Init {
     }
 
     mainPuyo = [{ rotate: 0 }, makePuyo(0), makePuyo(1)];
-    this.draw.puyo(mainPuyo);
   };
 }
-/*==================
-	Stage
-====================*/
-class Stage {
-  fallPuyo() {
-
-  }
-}
-
 
 class MoveMainPuyo {
   constructor(keyDown, rotate, puyo1, puyo2) {
     this.draw = new Draw();
+    this.stage = new Stage();
     this.keyDown = keyDown;
     this.rotate = rotate;
     this.puyo1 = Object.assign({}, puyo1);
@@ -222,7 +266,7 @@ class MoveMainPuyo {
     let requestId;
     let loop = () => {      
       if (frame < animationSpeed) {
-        this.draw.eraseLayer();       
+        this.draw.erasePuyo();       
         mainPuyo[1].x += (this.movedMainPuyo[0].x - this.puyo1.x) / animationSpeed;
         mainPuyo[1].y += (this.movedMainPuyo[0].y - this.puyo1.y) / animationSpeed;
         mainPuyo[2].x += (this.movedMainPuyo[1].x - this.puyo2.x) / animationSpeed;
@@ -268,11 +312,16 @@ window.addEventListener('keydown', (e) => {
           moveMainPuyo.execute();
           break;        
         case 'next':
+          let stage = new Stage();
+          let nextTurn = new NextTurn();
           // メインぷよをステージ最下部まで落下させる
-          alert('着地した！');
+          stage.setMainPuyo();
+          stage.getFallingPuyoList();          
+          
           // ぷよが消せるか判定し、すべて消すまでループ
 
           // 消し終わったら次のメインぷよを設定
+          nextTurn.setMainPuyo();
           break;
         case 'failed':
           break;
