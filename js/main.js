@@ -43,51 +43,68 @@ class Layer {
 	Draw
 ====================*/
 class Draw extends Layer {
-  constructor(isInit = false) {
+  constructor() {
     super();
-    this.isInit = isInit;
   }
 
-  stage(img) {
+  image(layer, img, x, y, isInit) {
+    if (!isInit) { layer.drawImage(img, x, y); }
+    else         { img.onload = () => { layer.drawImage(img, x, y); } }
+  }
+
+  stage(img, isInit = false) {
     this.layer1.width = Config.stageWidth;
     this.layer1.height = Config.stageHeight;
     this.layer2.width = Config.stageWidth;
     this.layer2.height = Config.stageHeight;
 
     this.layer1ctx.fillRect(0, 0, Config.stageWidth, Config.stageHeight);
-    this.image(this.layer1ctx, img);
+    this.image(this.layer1ctx, img, 0, 0, isInit);
   }
 
-  image(layer, img, x = 0, y = 0) {
-    if (!this.isInit) {
-      layer.drawImage(img, x, y);      
-    } else {
-      img.onload = () => {
-        layer.drawImage(img, x, y);
-      }
-    }
+  puyo(imgArray, coordArray, isInit = false) {    
+    imgArray.forEach((img, i) => {
+      let x = Config.stageBaseX + coordArray[i][0] * Config.puyoImgWidth;
+      let y = Config.stageBaseY + coordArray[i][1] * Config.puyoImgHeight;
+  
+      this.image(this.layer2ctx, img, x, y, isInit);
+    })
   }
 
-  puyo(array) {
-    if(array == mainPuyo) array = array.slice(1, 3);
-    array.forEach(puyo => {
-      let x = Config.stageBaseX + puyo.x * Config.puyoImgWidth;
-      let y = Config.stageBaseY + puyo.y * Config.puyoImgHeight;
+  erasePuyo(coordArray) {
+    coordArray.forEach(coord => {
+      let x = Config.stageBaseX + Config.puyoImgWidth * coord[0] / 1;
+      let y = Config.stageBaseY + Config.puyoImgHeight * coord[1] / 1;
 
-      this.image(this.layer2ctx, puyo.img, x, y);
-    });
-  }
-
-  erasePuyo() {
-    let x1 = Config.stageBaseX + Config.puyoImgWidth * mainPuyo[1].x / 1;
-    let y1 = Config.stageBaseY + Config.puyoImgHeight * mainPuyo[1].y / 1;
-    this.layer2ctx.clearRect(x1, y1, Config.puyoImgWidth, Config.puyoImgHeight);
-
-    let x2= Config.stageBaseX + Config.puyoImgWidth * mainPuyo[2].x / 1;
-    let y2 = Config.stageBaseY + Config.puyoImgHeight * mainPuyo[2].y / 1;    
-    this.layer2ctx.clearRect(x2, y2, Config.puyoImgWidth, Config.puyoImgHeight);
+      this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
+    })
   }
   
+  moveAnimation(imgArray, fromArray, toArray) {
+    let frame = 0;
+    let animationSpeed = 5;
+    let movedArray = JSON.parse(JSON.stringify(fromArray));
+
+    let requestId;
+    let loop = () => {
+      this.erasePuyo(movedArray);
+      if (frame < animationSpeed) {
+        movedArray.forEach((moved, i) => {
+          moved[0] += (toArray[i][0] - fromArray[i][0]) / animationSpeed;
+          moved[1] += (toArray[i][1] - fromArray[i][1]) / animationSpeed;
+        });
+        this.puyo(imgArray, movedArray);
+
+      } else {
+        this.puyo(imgArray, toArray);
+        return cancelAnimationFrame(requestId);
+      }      
+      frame++;      
+      requestId = requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
   render(array) {
     for(let coord of array) {
       let x = Config.stageBaseX + Config.puyoImgWidth * coord[0];
@@ -110,22 +127,18 @@ class Draw extends Layer {
 }
 
 /*==================
-	Init
+	Stage
 ====================*/
-class Init {
+class Stage {
   constructor() {
-    this.draw = new Draw(true);
-    this.nextTurn = new NextTurn();
-    
-    this.setStage();             // ステージ設定
-    this.nextTurn.setMainPuyo(); // メインぷよ設定
-    this.draw.puyo(mainPuyo);
+    this.draw = new Draw();
+    this.fallingPuyoList = [];
   }
 
-  setStage() {
+  init() {
     let img = new Image();
     img.src = Config.charaSrc;
-    this.draw.stage(img);
+    this.draw.stage(img, true);
 
     stage = [
       [9, 0, 0, 0, 0, 0, 0, 9],
@@ -145,19 +158,45 @@ class Init {
     ];
   }
 
-  
-}
-/*==================
-	Stage
-====================*/
-class Stage {
-  constructor() {
-    this.draw = new Draw();
-    this.fallingPuyoList = [];
-  }
   setMainPuyo() {
-    stage[mainPuyo[1].y][mainPuyo[1].x] = mainPuyo[1]
-    stage[mainPuyo[2].y][mainPuyo[2].x] = mainPuyo[2]
+    let makePuyo = () => {
+      let img = new Image();
+      let color = Math.floor(Math.random() * Config.puyoKind) + 1;
+      switch (color) {      
+        case 1: img.src = Config.puyoBlueSrc;   break;
+        case 2: img.src = Config.puyoGreenSrc;  break;
+        case 3: img.src = Config.puyoRedSrc;    break;
+        case 4: img.src = Config.puyoYellowSrc;
+      }
+      return img;
+    }
+    let mainPuyoImgList = [makePuyo(), makePuyo()];
+
+    stage[0][3] = mainPuyoImgList[0];
+    stage[1][3] = mainPuyoImgList[1];
+
+    mainPuyo = { 'rotate': 0, '1': [3, 0], '2': [3, 1] };
+    this.draw.puyo(mainPuyoImgList, [mainPuyo[1], mainPuyo[2]], true);
+  }
+
+  getPuyoImgList(coordArray) {
+    let puyoImgList = [];
+    coordArray.forEach(coord => {
+      puyoImgList.push(stage[coord[1]][coord[0]]);
+    });
+    return puyoImgList;
+  }
+
+  movePuyo(fromArray, toArray) {
+    let imageList = [];
+    fromArray.forEach((from) => {
+      imageList.push(stage[from[1]][from[0]]);
+      stage[from[1]][from[0]] = 0;
+    });
+
+    toArray.forEach((to, i) => {
+      stage[to[1]][to[0]] = imageList[i];
+    });
   }
 
   getFallingPuyoList() {
@@ -175,124 +214,127 @@ class Stage {
 }
 
 /*==================
-	NextTurn
+	TurnChange
 ====================*/
-class NextTurn {
-  setMainPuyo() {
-    let makePuyo = (position) => {
-      let img = new Image();
-      let color = Math.floor(Math.random() * Config.puyoKind) + 1;
-      img.src = (() => {      
-        switch (color) {      
-          case 1:
-            return Config.puyoBlueSrc;
-          case 2:
-            return Config.puyoGreenSrc;
-          case 3:
-            return Config.puyoRedSrc;
-          case 4:
-            return Config.puyoYellowSrc;
-        }
-      })();
-
-      return !position ?
-        { img: img, color: color, x: 3, y: 0 } :
-        { img: img, color: color, x: 3, y: 1 }
-    }
-
-    mainPuyo = [{ rotate: 0 }, makePuyo(0), makePuyo(1)];
-  };
-}
-
-class MoveMainPuyo {
-  constructor(keyDown, rotate, puyo1, puyo2) {
-    this.draw = new Draw();
+class TurnChange {
+  constructor() {
     this.stage = new Stage();
-    this.keyDown = keyDown;
-    this.rotate = rotate;
-    this.puyo1 = Object.assign({}, puyo1);
-    this.puyo2 = Object.assign({}, puyo2);
-    this.movedMainPuyo = this.get(puyo1.x, puyo1.y, puyo2.x, puyo2.y);
   }
 
-  get(x1, y1, x2, y2) {
+  execute() {    
+    // メインぷよをステージ最下部まで落下させる
+
+    // ぷよが消せるか判定し、すべて消すまでループ
+
+    // 消し終わったら次のメインぷよを設定
+    this.stage.setMainPuyo();
+  }
+}
+
+/*==================
+	MoveMainPuyo
+====================*/
+class MoveMainPuyo {
+  constructor(keyDown) {
+    this.keyDown = keyDown;
+    this.currentPuyo = [mainPuyo[1], mainPuyo[2]];
+    this.movedPuyo = this.init();
+  }
+
+  init() {
+    let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
+    let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
+
     switch (this.keyDown) {
-      case Config.moveDownKey:
-        return [ {x: x1, y: y1 + 1}, {x: x2, y: y2 + 1} ];
-
-      case Config.moveRightKey:
-        return [ {x: x1 + 1, y: y1}, {x: x2 + 1, y: y2} ];
-
-      case Config.moveLeftKey:
-        return [ {x: x1 - 1, y: y1}, {x: x2 - 1, y: y2} ];
-        
-      case Config.rotateRightKey:
-        switch (this.rotate) {
-          case 0:   return [ {x: x1 + 1, y: y1 + 1}, {x: x2, y: y2} ];
-          case 90:  return [ {x: x1 - 1, y: y1 + 1}, {x: x2, y: y2} ];
-          case 180: return [ {x: x1 - 1, y: y1 - 1}, {x: x2, y: y2} ];
-          case 270: return [ {x: x1 + 1, y: y1 - 1}, {x: x2, y: y2} ];
-        }
-
-      case Config.rotateLeftKey:
-        switch (this.rotate) {
-          case 0:   return [ {x: x1 - 1, y: y1 + 1}, {x: x2, y: y2} ];
-          case 90:  return [ {x: x1 - 1, y: y1 - 1}, {x: x2, y: y2} ];
-          case 180: return [ {x: x1 + 1, y: y1 - 1}, {x: x2, y: y2} ];
-          case 270: return [ {x: x1 + 1, y: y1 + 1}, {x: x2, y: y2} ];
-        }
+      case Config.moveDownKey:  return [ [x1, y1 + 1], [x2, y2 + 1] ];
+      case Config.moveRightKey: return [ [x1 + 1, y1], [x2 + 1, y2] ];
+      case Config.moveLeftKey:  return [ [x1 - 1, y1], [x2 - 1, y2] ];
     }
   }
 
   checkStatus() {
-    if(this.keyDown == Config.moveDownKey &&
-      ( stage[this.movedMainPuyo[0].y][this.movedMainPuyo[0].x] != 0 ||
-         stage[this.movedMainPuyo[1].y][this.movedMainPuyo[0].x] != 0 ) ) {
-      return 'next';
-    }
+    // if(this.keyDown == Config.moveDownKey &&
+    //   ( stage[this.movedMainPuyo[0][1]][this.movedMainPuyo[0][0]] != 0 ||
+    //     stage[this.movedMainPuyo[1][1]][this.movedMainPuyo[1][0]] != 0 ) ) {
+    //   return 'turnChange';
+    // }
 
-    if( !( stage[this.movedMainPuyo[0].y][this.movedMainPuyo[0].x] == 0 &&
-           stage[this.movedMainPuyo[1].y][this.movedMainPuyo[1].x] == 0 ) ) {
-      return 'failed';
-    }
+    // if( !( stage[this.movedMainPuyo[0][1]][this.movedMainPuyo[0][1]] == 0 &&
+    //        stage[this.movedMainPuyo[1][1]][this.movedMainPuyo[1][1]] == 0 ) ) {
+    //   return 'failed';
+    // }
 
     return 'succeeded';
   }
 
   execute() {
-    let frame = 0;
-    let animationSpeed = 5;
+    let draw = new Draw(); 
+    let stage = new Stage();
     
-    let requestId;
-    let loop = () => {      
-      if (frame < animationSpeed) {
-        this.draw.erasePuyo();       
-        mainPuyo[1].x += (this.movedMainPuyo[0].x - this.puyo1.x) / animationSpeed;
-        mainPuyo[1].y += (this.movedMainPuyo[0].y - this.puyo1.y) / animationSpeed;
-        mainPuyo[2].x += (this.movedMainPuyo[1].x - this.puyo2.x) / animationSpeed;
-        mainPuyo[2].y += (this.movedMainPuyo[1].y - this.puyo2.y) / animationSpeed;
-      } else {
-        // 丸め誤差
-        mainPuyo[1].x = Math.round(mainPuyo[1].x);
-        mainPuyo[1].y = Math.round(mainPuyo[1].y);
-        mainPuyo[2].x = Math.round(mainPuyo[2].x);
-        mainPuyo[2].y = Math.round(mainPuyo[2].y);
-  
-        switch (this.keyDown) {
-          case Config.rotateRightKey:
-            mainPuyo[0].rotate = (mainPuyo[0].rotate + 90) % 360;
-            break;
-          case Config.rotateLeftKey:
-            mainPuyo[0].rotate = (mainPuyo[0].rotate - 90 + 360) % 360;        
+    let imgList = stage.getPuyoImgList(this.currentPuyo);
+    draw.moveAnimation( imgList, this.currentPuyo, this.movedPuyo );
+    stage.movePuyo( this.currentPuyo, this.movedPuyo );
+    
+    mainPuyo[1] = this.movedPuyo[0];
+    mainPuyo[2] = this.movedPuyo[1];
+  }
+}
+
+/*==================
+	RotateMainPuyo
+====================*/
+class RotateMainPuyo {
+  constructor(keyDown) {
+    this.keyDown = keyDown;
+    this.currentPuyo = [mainPuyo[1], mainPuyo[2]];
+    this.rotatedPuyo = this.init();
+  }
+
+  init() {
+    let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
+    let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
+
+    switch (this.keyDown) {
+      case Config.rotateRightKey:
+        switch (mainPuyo.rotate) {
+          case 0:   return [ [x1 + 1, y1 + 1], [x2, y2] ];
+          case 90:  return [ [x1 - 1, y1 + 1], [x2, y2] ];
+          case 180: return [ [x1 - 1, y1 - 1], [x2, y2] ];
+          case 270: return [ [x1 + 1, y1 - 1], [x2, y2] ];
         }
-        return cancelAnimationFrame(requestId);      
-      }       
-      this.draw.puyo(mainPuyo);      
-      frame++;
-      
-      requestId = requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
+
+      case Config.rotateLeftKey:
+        switch (mainPuyo.rotate) {
+          case 0:   return [ [x1 - 1, y1 + 1], [x2, y2] ];
+          case 90:  return [ [x1 - 1, y1 - 1], [x2, y2] ];
+          case 180: return [ [x1 + 1, y1 - 1], [x2, y2] ];
+          case 270: return [ [x1 + 1, y1 + 1], [x2, y2] ];
+        }
+    }
+  }
+
+  checkStatus() {
+    return 'succeeded';
+  }
+
+  execute() {
+    let draw = new Draw(); 
+    let stage = new Stage();
+    
+    let imgList = stage.getPuyoImgList(this.currentPuyo);
+    draw.moveAnimation( imgList, this.currentPuyo, this.rotatedPuyo );
+    stage.movePuyo( this.currentPuyo, this.rotatedPuyo );
+    
+    mainPuyo[1] = this.rotatedPuyo[0];
+    mainPuyo[2] = this.rotatedPuyo[1];
+
+    switch (this.keyDown) {
+      case Config.rotateRightKey:
+        mainPuyo.rotate = (mainPuyo.rotate + 90) % 360;
+        break;
+      case Config.rotateLeftKey:
+        mainPuyo.rotate = (mainPuyo.rotate - 90 + 360) % 360;        
+    }
   }
 }
 
@@ -300,37 +342,42 @@ class MoveMainPuyo {
 	Operation
 ====================*/
 window.addEventListener('keydown', (e) => {
+  let isTurnChange = false;
   switch (e.key) {
     case Config.moveDownKey:
     case Config.moveRightKey:
     case Config.moveLeftKey:
+      let moveMainPuyo = new MoveMainPuyo(e.key);
+      switch (moveMainPuyo.checkStatus()) {
+        case 'succeeded':  moveMainPuyo.execute(); return;
+        case 'turnChange': isTurnChange = true;    break;
+        case 'failed':    return;
+      }
+    
     case Config.rotateRightKey:
     case Config.rotateLeftKey:
-      let moveMainPuyo = new MoveMainPuyo(e.key, mainPuyo[0].rotate, mainPuyo[1], mainPuyo[2]);
-      switch (moveMainPuyo.checkStatus()) {
-        case 'succeeded':
-          moveMainPuyo.execute();
-          break;        
-        case 'next':
-          let stage = new Stage();
-          let nextTurn = new NextTurn();
-          // メインぷよをステージ最下部まで落下させる
-          stage.setMainPuyo();
-          stage.getFallingPuyoList();          
-          
-          // ぷよが消せるか判定し、すべて消すまでループ
-
-          // 消し終わったら次のメインぷよを設定
-          nextTurn.setMainPuyo();
-          break;
-        case 'failed':
-          break;
+      let rotateMainPuyo = new RotateMainPuyo(e.key);
+      switch (rotateMainPuyo.checkStatus()) {
+        case 'succeeded':  rotateMainPuyo.execute(); return;
+        case 'turnChange': isTurnChange = true;      break;
+        case 'failed':    return;
       }
-  }  
+  }
+
+  if (isTurnChange) {
+    let turnChange = new TurnChange();
+    turnChange.execute();
+  }
 });
 
 window.addEventListener("load", () => {
-  new Init();
+  // ステージ設定
+  let stage = new Stage();
+  stage.init();
+
+  // メインぷよ設定
+  let turnChange = new TurnChange();
+  turnChange.execute();
 });
 
 /*==================
