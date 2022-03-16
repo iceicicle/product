@@ -105,25 +105,25 @@ class Draw extends Layer {
     requestAnimationFrame(loop);
   }
 
-  render(array) {
-    for(let coord of array) {
-      let x = Config.stageBaseX + Config.puyoImgWidth * coord[0];
-      let y = Config.stageBaseY + Config.puyoImgHeight * coord[1];
+  // render(array) {
+  //   for(let coord of array) {
+  //     let x = Config.stageBaseX + Config.puyoImgWidth * coord[0];
+  //     let y = Config.stageBaseY + Config.puyoImgHeight * coord[1];
       
-      let flag = true;
-      let newY = coord[1];
-      while(flag) {        
-        if(stage[newY + 1][coord[0]] == 0) {
-          newY++;
-        } else {
-          this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
-          let YY = Config.stageBaseY + Config.puyoImgHeight * newY;
-          this.image(this.layer2ctx, stage[coord[1]][coord[0]].img, x, YY); // 本来はアニメーション
-          flag = false;
-        }
-      }
-    }
-  }
+  //     let flag = true;
+  //     let newY = coord[1];
+  //     while(flag) {        
+  //       if(stage[newY + 1][coord[0]] == 0) {
+  //         newY++;
+  //       } else {
+  //         this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
+  //         let YY = Config.stageBaseY + Config.puyoImgHeight * newY;
+  //         this.image(this.layer2ctx, stage[coord[1]][coord[0]].img, x, YY); // 本来はアニメーション
+  //         flag = false;
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 /*==================
@@ -132,7 +132,6 @@ class Draw extends Layer {
 class Stage {
   constructor() {
     this.draw = new Draw();
-    this.fallingPuyoList = [];
   }
 
   init() {
@@ -199,17 +198,27 @@ class Stage {
     });
   }
 
-  getFallingPuyoList() {
+  fallingPuyo() {
+    let fromArray = [];
+    let toArray = [];
+
     for (let i = 1; i < 7; i++) {
       let isFalling = false;
-      stage.slice(1, 13).reverse().map((col, j) => {
+      stage.slice(0, 13).reverse().map((col, j) => {
         if (col[i] == 0) isFalling = true;
-        if (isFalling && col[i] != 0) {
-          this.fallingPuyoList.push([i, 12 - j]);
+        if (isFalling && col[i] == 0) {
+          toArray.push([i, 12 - j]);
         }
-      })
+        if (isFalling && col[i] != 0) {
+          fromArray.push([i, 12 - j]); 
+        }
+      });
+      toArray = toArray.slice(0, (fromArray.length - toArray.length));
     }
-    this.draw.render(this.fallingPuyoList);
+
+    let imgList = this.getPuyoImgList(fromArray);
+    this.draw.moveAnimation(imgList, fromArray, toArray)
+    this.movePuyo(fromArray, toArray);
   }
 }
 
@@ -221,8 +230,13 @@ class TurnChange {
     this.stage = new Stage();
   }
 
+  init() {
+    this.stage.setMainPuyo();
+  }
+
   execute() {    
     // メインぷよをステージ最下部まで落下させる
+    this.stage.fallingPuyo();
 
     // ぷよが消せるか判定し、すべて消すまでループ
 
@@ -253,17 +267,47 @@ class MoveMainPuyo {
   }
 
   checkStatus() {
-    // if(this.keyDown == Config.moveDownKey &&
-    //   ( stage[this.movedMainPuyo[0][1]][this.movedMainPuyo[0][0]] != 0 ||
-    //     stage[this.movedMainPuyo[1][1]][this.movedMainPuyo[1][0]] != 0 ) ) {
-    //   return 'turnChange';
-    // }
+    if( this.keyDown == Config.moveRightKey ){
+      if ( ( mainPuyo.rotate == 0 || mainPuyo.rotate == 180 ) &&
+            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
+              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
+         ||
+         ( ( mainPuyo.rotate == 90 &&
+             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) 
+           ||
+           ( mainPuyo.rotate == 270 &&
+             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) ) ) {
+        return 'failed';
+      }
+    }
 
-    // if( !( stage[this.movedMainPuyo[0][1]][this.movedMainPuyo[0][1]] == 0 &&
-    //        stage[this.movedMainPuyo[1][1]][this.movedMainPuyo[1][1]] == 0 ) ) {
-    //   return 'failed';
-    // }
+    if( this.keyDown == Config.moveLeftKey ){
+      if ( ( mainPuyo.rotate == 0 || mainPuyo.rotate == 180 ) &&
+            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
+              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
+         ||
+         ( ( mainPuyo.rotate == 90 &&
+             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) 
+           ||
+           ( mainPuyo.rotate == 270 &&
+             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) ) ) {
+        return 'failed';
+      }
+    }
 
+    if( this.keyDown == Config.moveDownKey ){
+      if ( ( mainPuyo.rotate == 90 || mainPuyo.rotate == 270 ) &&
+            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
+              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
+         ||
+         ( ( mainPuyo.rotate == 0 &&
+             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) 
+           ||
+           ( mainPuyo.rotate == 180 &&
+             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) ) ) {
+        return 'turnChange';
+      }
+    }
     return 'succeeded';
   }
 
@@ -314,6 +358,39 @@ class RotateMainPuyo {
   }
 
   checkStatus() {
+    if( this.keyDown == Config.rotateRightKey ){
+      // 壁蹴りの挙動が考慮されていない
+      if ( ( mainPuyo.rotate == 0 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]-1][this.rotatedPuyo[0][0]] != 0 ) )
+           ||
+           ( mainPuyo.rotate == 90 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]+1] != 0 ) )
+           ||
+           ( mainPuyo.rotate == 180 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]+1][this.rotatedPuyo[0][0]] != 0 ) ) ) {
+        return 'failed';
+      }
+    }
+
+    if( this.keyDown == Config.rotateLeftKey ){
+      // 壁蹴りの挙動が考慮されていない
+      if ( ( mainPuyo.rotate == 0 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]-1][this.rotatedPuyo[0][0]] != 0 ) )
+           ||
+           ( mainPuyo.rotate == 270 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]-1] != 0 ) )
+           ||
+           ( mainPuyo.rotate == 180 &&
+             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
+               stage[this.rotatedPuyo[0][1]+1][this.rotatedPuyo[0][0]] != 0 ) ) ) {
+        return 'failed';
+      }
+    }
     return 'succeeded';
   }
 
@@ -353,6 +430,7 @@ window.addEventListener('keydown', (e) => {
         case 'turnChange': isTurnChange = true;    break;
         case 'failed':    return;
       }
+      break;
     
     case Config.rotateRightKey:
     case Config.rotateLeftKey:
@@ -377,7 +455,7 @@ window.addEventListener("load", () => {
 
   // メインぷよ設定
   let turnChange = new TurnChange();
-  turnChange.execute();
+  turnChange.init();
 });
 
 /*==================
