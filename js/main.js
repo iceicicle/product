@@ -104,26 +104,6 @@ class Draw extends Layer {
     };
     requestAnimationFrame(loop);
   }
-
-  // render(array) {
-  //   for(let coord of array) {
-  //     let x = Config.stageBaseX + Config.puyoImgWidth * coord[0];
-  //     let y = Config.stageBaseY + Config.puyoImgHeight * coord[1];
-      
-  //     let flag = true;
-  //     let newY = coord[1];
-  //     while(flag) {        
-  //       if(stage[newY + 1][coord[0]] == 0) {
-  //         newY++;
-  //       } else {
-  //         this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
-  //         let YY = Config.stageBaseY + Config.puyoImgHeight * newY;
-  //         this.image(this.layer2ctx, stage[coord[1]][coord[0]].img, x, YY); // 本来はアニメーション
-  //         flag = false;
-  //       }
-  //     }
-  //   }
-  // }
 }
 
 /*==================
@@ -178,6 +158,41 @@ class Stage {
     this.draw.puyo(mainPuyoImgList, [mainPuyo[1], mainPuyo[2]], true);
   }
 
+  getErasePuyoList() {    
+    const direction = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    let erasePuyo = [];
+    let searchPuyo = [];
+
+    let setErasePuyoList = (sx, sy) => {  
+      for(let i = 0; i < direction.length; i++) {
+        let tx = sx + direction[i][0];
+        let ty = sy + direction[i][1];
+
+        if (!searchPuyo.some(puyo => { return puyo[0] == tx && puyo[1] == ty; }) &&
+            typeof stage[ty][tx] == 'object' &&
+            stage[sy][sx].src == stage[ty][tx].src) {
+
+          searchPuyo.push([tx, ty]);
+          setErasePuyoList(tx, ty);
+        }        
+      }      
+    };
+
+    for (let x = 1; x <= 6; x++) {
+      for (let y = 12; y >= 1; y--) {
+        searchPuyo = [];
+        setErasePuyoList(x, y);
+        if (!erasePuyo.some(puyo => { return puyo[0] == x && puyo[1] == y; }) &&
+            searchPuyo.length >= 4) {
+          searchPuyo.forEach(puyo => { erasePuyo.push(puyo); });
+        }
+        console.log(erasePuyo);
+      }
+    }
+
+    return erasePuyo;
+  }
+
   getPuyoImgList(coordArray) {
     let puyoImgList = [];
     coordArray.forEach(coord => {
@@ -202,46 +217,30 @@ class Stage {
     let fromArray = [];
     let toArray = [];
 
-    for (let i = 1; i < 7; i++) {
+    for (let x = 1; x <= 6; x++) {
       let isFalling = false;
-      stage.slice(0, 13).reverse().map((col, j) => {
-        if (col[i] == 0) isFalling = true;
-        if (isFalling && col[i] == 0) {
-          toArray.push([i, 12 - j]);
+
+      for (let y = 12; y >= 0; y--) {
+        if (stage[y][x] == 0) isFalling = true;
+        if (isFalling && stage[y][x] == 0) {
+          toArray.push([x, y]);
         }
-        if (isFalling && col[i] != 0) {
-          fromArray.push([i, 12 - j]); 
+        if (isFalling && stage[y][x] != 0) {
+          fromArray.push([x,  y]); 
         }
-      });
+      }
       toArray = toArray.slice(0, (fromArray.length - toArray.length));
     }
 
     let imgList = this.getPuyoImgList(fromArray);
-    this.draw.moveAnimation(imgList, fromArray, toArray)
+    this.draw.moveAnimation(imgList, fromArray, toArray);
     this.movePuyo(fromArray, toArray);
   }
-}
 
-/*==================
-	TurnChange
-====================*/
-class TurnChange {
-  constructor() {
-    this.stage = new Stage();
-  }
-
-  init() {
-    this.stage.setMainPuyo();
-  }
-
-  execute() {    
-    // メインぷよをステージ最下部まで落下させる
-    this.stage.fallingPuyo();
-
-    // ぷよが消せるか判定し、すべて消すまでループ
-
-    // 消し終わったら次のメインぷよを設定
-    this.stage.setMainPuyo();
+  erasePuyo() {
+    let erasePuyoList = this.getErasePuyoList();
+    let imgList = this.getPuyoImgList(erasePuyoList);
+    this.draw.erasePuyo(erasePuyoList);
   }
 }
 
@@ -267,7 +266,7 @@ class MoveMainPuyo {
   }
 
   checkStatus() {
-    if( this.keyDown == Config.moveRightKey ){
+    if( this.keyDown == Config.moveRightKey ) {
       if ( ( mainPuyo.rotate == 0 || mainPuyo.rotate == 180 ) &&
             ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
               stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
@@ -412,6 +411,33 @@ class RotateMainPuyo {
       case Config.rotateLeftKey:
         mainPuyo.rotate = (mainPuyo.rotate - 90 + 360) % 360;        
     }
+  }
+}
+/*==================
+	TurnChange
+====================*/
+class TurnChange {
+  constructor() {
+    this.stage = new Stage();
+  }
+
+  init() {
+    this.stage.setMainPuyo();
+  }
+
+  execute() {    
+    // ぷよをステージ最下部まで落下させる
+    this.stage.fallingPuyo();
+    this.stage.erasePuyo();
+
+    // ぷよが消せるか判定し、すべて消すまでループ
+    // while(this.stage.getErasePuyoList()) {
+    //   this.stage.erasePuyo();
+    //   this.stage.fallingPuyo();
+    // }
+
+    // 消し終わったら次のメインぷよを設定
+    this.stage.setMainPuyo();
   }
 }
 
