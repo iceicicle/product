@@ -78,31 +78,43 @@ class Draw extends Layer {
 
       this.layer2ctx.clearRect(x, y, Config.puyoImgWidth, Config.puyoImgHeight);
     })
+  }  
+}
+
+/*==================
+	Animation
+====================*/
+class Animation extends Draw {
+  constructor() {
+    super();
   }
-  
-  moveAnimation(imgArray, fromArray, toArray) {
-    let frame = 0;
-    let animationSpeed = 5;
-    let movedArray = JSON.parse(JSON.stringify(fromArray));
 
-    let requestId;
-    let loop = () => {
-      this.erasePuyo(movedArray);
-      if (frame < animationSpeed) {
-        movedArray.forEach((moved, i) => {
-          moved[0] += (toArray[i][0] - fromArray[i][0]) / animationSpeed;
-          moved[1] += (toArray[i][1] - fromArray[i][1]) / animationSpeed;
-        });
-        this.puyo(imgArray, movedArray);
-
-      } else {
-        this.puyo(imgArray, toArray);
-        return cancelAnimationFrame(requestId);
-      }      
-      frame++;      
-      requestId = requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
+  movePuyo(imgArray, fromArray, toArray) {
+    return new Promise((resolve) => {
+      let frame = 0;
+      let animationSpeed = 5;
+      let movedArray = JSON.parse(JSON.stringify(fromArray));
+    
+      let requestId;
+      let loop = () => {
+        this.erasePuyo(movedArray);
+        if (frame < animationSpeed) {
+          movedArray.forEach((moved, i) => {
+            moved[0] += (toArray[i][0] - fromArray[i][0]) / animationSpeed;
+            moved[1] += (toArray[i][1] - fromArray[i][1]) / animationSpeed;
+          });
+          this.puyo(imgArray, movedArray);
+    
+        } else {
+          this.puyo(imgArray, toArray);
+          cancelAnimationFrame(requestId);
+          return resolve();
+        }      
+        frame++;      
+        requestId = requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    })
   }
 }
 
@@ -110,15 +122,7 @@ class Draw extends Layer {
 	Stage
 ====================*/
 class Stage {
-  constructor() {
-    this.draw = new Draw();
-  }
-
-  init() {
-    let img = new Image();
-    img.src = Config.charaSrc;
-    this.draw.stage(img, true);
-
+  init() {    
     stage = [
       [9, 0, 0, 0, 0, 0, 0, 9],
       [9, 0, 0, 0, 0, 0, 0, 9],
@@ -135,6 +139,11 @@ class Stage {
       [9, 0, 0, 0, 0, 0, 0, 9],
       [9, 9, 9, 9, 9, 9, 9, 9],
     ];
+    let img = new Image();
+    img.src = Config.charaSrc;
+
+    let draw = new Draw();
+    draw.stage(img, true);
   }
 
   setMainPuyo() {
@@ -155,7 +164,21 @@ class Stage {
     stage[1][3] = mainPuyoImgList[1];
 
     mainPuyo = { 'rotate': 0, '1': [3, 0], '2': [3, 1] };
-    this.draw.puyo(mainPuyoImgList, [mainPuyo[1], mainPuyo[2]], true);
+
+    let draw = new Draw();
+    draw.puyo(mainPuyoImgList, [mainPuyo[1], mainPuyo[2]], true);
+  }
+
+  setMovePuyo(fromArray, toArray) {
+    let imageList = [];
+    fromArray.forEach((from) => {
+      imageList.push(stage[from[1]][from[0]]);
+      stage[from[1]][from[0]] = 0;
+    });
+
+    toArray.forEach((to, i) => {
+      stage[to[1]][to[0]] = imageList[i];
+    });
   }
 
   getErasePuyoList() {    
@@ -186,7 +209,6 @@ class Stage {
             searchPuyo.length >= 4) {
           searchPuyo.forEach(puyo => { erasePuyo.push(puyo); });
         }
-        console.log(erasePuyo);
       }
     }
 
@@ -201,16 +223,15 @@ class Stage {
     return puyoImgList;
   }
 
-  movePuyo(fromArray, toArray) {
-    let imageList = [];
-    fromArray.forEach((from) => {
-      imageList.push(stage[from[1]][from[0]]);
-      stage[from[1]][from[0]] = 0;
-    });
-
-    toArray.forEach((to, i) => {
-      stage[to[1]][to[0]] = imageList[i];
-    });
+  erasePuyo() {
+    let erasePuyoList = this.getErasePuyoList();    
+    
+    erasePuyoList.forEach(coord => {
+      stage[coord[1]][coord[0]] = 0
+    })
+    
+    let draw = new Draw();
+    return draw.erasePuyo(erasePuyoList);    
   }
 
   fallingPuyo() {
@@ -226,21 +247,17 @@ class Stage {
           toArray.push([x, y]);
         }
         if (isFalling && stage[y][x] != 0) {
-          fromArray.push([x,  y]); 
+          fromArray.push([x,  y]);
         }
       }
       toArray = toArray.slice(0, (fromArray.length - toArray.length));
     }
 
-    let imgList = this.getPuyoImgList(fromArray);
-    this.draw.moveAnimation(imgList, fromArray, toArray);
-    this.movePuyo(fromArray, toArray);
-  }
+    let imgList = this.getPuyoImgList(fromArray);    
+    this.setMovePuyo(fromArray, toArray);
 
-  erasePuyo() {
-    let erasePuyoList = this.getErasePuyoList();
-    let imgList = this.getPuyoImgList(erasePuyoList);
-    this.draw.erasePuyo(erasePuyoList);
+    let animation = new Animation();
+    return animation.movePuyo(imgList, fromArray, toArray);
   }
 }
 
@@ -311,15 +328,15 @@ class MoveMainPuyo {
   }
 
   execute() {
-    let draw = new Draw(); 
     let stage = new Stage();
-    
     let imgList = stage.getPuyoImgList(this.currentPuyo);
-    draw.moveAnimation( imgList, this.currentPuyo, this.movedPuyo );
-    stage.movePuyo( this.currentPuyo, this.movedPuyo );
+    stage.setMovePuyo( this.currentPuyo, this.movedPuyo );
     
     mainPuyo[1] = this.movedPuyo[0];
     mainPuyo[2] = this.movedPuyo[1];
+    
+    let animation = new Animation(); 
+    animation.movePuyo(imgList, this.currentPuyo, this.movedPuyo);
   }
 }
 
@@ -393,13 +410,10 @@ class RotateMainPuyo {
     return 'succeeded';
   }
 
-  execute() {
-    let draw = new Draw(); 
-    let stage = new Stage();
-    
-    let imgList = stage.getPuyoImgList(this.currentPuyo);
-    draw.moveAnimation( imgList, this.currentPuyo, this.rotatedPuyo );
-    stage.movePuyo( this.currentPuyo, this.rotatedPuyo );
+  execute() {     
+    let stage = new Stage();    
+    let imgList = stage.getPuyoImgList(this.currentPuyo);    
+    stage.setMovePuyo( this.currentPuyo, this.rotatedPuyo );
     
     mainPuyo[1] = this.rotatedPuyo[0];
     mainPuyo[2] = this.rotatedPuyo[1];
@@ -411,6 +425,9 @@ class RotateMainPuyo {
       case Config.rotateLeftKey:
         mainPuyo.rotate = (mainPuyo.rotate - 90 + 360) % 360;        
     }
+
+    let animation = new Animation();
+    animation.movePuyo( imgList, this.currentPuyo, this.rotatedPuyo )
   }
 }
 /*==================
@@ -425,16 +442,15 @@ class TurnChange {
     this.stage.setMainPuyo();
   }
 
-  execute() {    
+  async execute() {    
     // ぷよをステージ最下部まで落下させる
-    this.stage.fallingPuyo();
-    this.stage.erasePuyo();
+    await this.stage.fallingPuyo();
 
     // ぷよが消せるか判定し、すべて消すまでループ
-    // while(this.stage.getErasePuyoList()) {
-    //   this.stage.erasePuyo();
-    //   this.stage.fallingPuyo();
-    // }
+    while(this.stage.getErasePuyoList().length) {
+      this.stage.erasePuyo();
+      await this.stage.fallingPuyo();
+    }
 
     // 消し終わったら次のメインぷよを設定
     this.stage.setMainPuyo();
