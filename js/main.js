@@ -97,6 +97,7 @@ class Animation extends Draw {
     
       let requestId;
       let loop = () => {
+        this.erasePuyo(fromArray);
         this.erasePuyo(movedArray);
         if (frame < animationSpeed) {
           movedArray.forEach((moved, i) => {
@@ -105,7 +106,7 @@ class Animation extends Draw {
           });
           this.puyo(imgArray, movedArray);
     
-        } else {
+        } else {          
           this.puyo(imgArray, toArray);
           cancelAnimationFrame(requestId);
           return resolve();
@@ -239,20 +240,18 @@ class Stage {
     let toArray = [];
 
     for (let x = 1; x <= 6; x++) {
+      let b = 0;
       let isFalling = false;
 
       for (let y = 12; y >= 0; y--) {
         if (stage[y][x] == 0) isFalling = true;
-        if (isFalling && stage[y][x] == 0) {
-          toArray.push([x, y]);
-        }
+        if (isFalling && stage[y][x] == 0) b++;
         if (isFalling && stage[y][x] != 0) {
           fromArray.push([x,  y]);
+          toArray.push([x,  y + b]);
         }
       }
-      toArray = toArray.slice(0, (fromArray.length - toArray.length));
     }
-
     let imgList = this.getPuyoImgList(fromArray);    
     this.setMovePuyo(fromArray, toArray);
 
@@ -443,17 +442,22 @@ class TurnChange {
   }
 
   async execute() {    
-    // ぷよをステージ最下部まで落下させる
-    await this.stage.fallingPuyo();
-
-    // ぷよが消せるか判定し、すべて消すまでループ
-    while(this.stage.getErasePuyoList().length) {
-      this.stage.erasePuyo();
+    try {
+      // ぷよをステージ最下部まで落下させる
       await this.stage.fallingPuyo();
-    }
 
-    // 消し終わったら次のメインぷよを設定
-    this.stage.setMainPuyo();
+      // ぷよが消せるか判定し、すべて消すまでループ
+      while(this.stage.getErasePuyoList().length) {
+        this.stage.erasePuyo();
+        await this.stage.fallingPuyo();
+      }
+
+      // 消し終わったら次のメインぷよを設定
+      this.stage.setMainPuyo();
+    } catch(e) {
+      // do nothing 
+    }
+    
   }
 }
 
