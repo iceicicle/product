@@ -1,5 +1,6 @@
 let stage;
 let mainPuyo;
+let puyoImgList;
 /*==================
 	Config
 ====================*/
@@ -147,27 +148,12 @@ class Stage {
     draw.stage(img, true);
   }
 
-  setMainPuyo() {
-    let makePuyo = () => {
-      let img = new Image();
-      let color = Math.floor(Math.random() * Config.puyoKind) + 1;
-      switch (color) {      
-        case 1: img.src = Config.puyoBlueSrc;   break;
-        case 2: img.src = Config.puyoGreenSrc;  break;
-        case 3: img.src = Config.puyoRedSrc;    break;
-        case 4: img.src = Config.puyoYellowSrc;
-      }
-      return img;
-    }
-    let mainPuyoImgList = [makePuyo(), makePuyo()];
-
-    stage[0][3] = mainPuyoImgList[0];
-    stage[1][3] = mainPuyoImgList[1];
-
-    mainPuyo = { 'rotate': 0, '1': [3, 0], '2': [3, 1] };
+  setMainPuyo(isInit = false) {
+    stage[0][3] = puyoImgList[0][0];
+    stage[1][3] = puyoImgList[0][1];
 
     let draw = new Draw();
-    draw.puyo(mainPuyoImgList, [mainPuyo[1], mainPuyo[2]], true);
+    draw.puyo(puyoImgList[0], [mainPuyo[1], mainPuyo[2]], isInit);
   }
 
   setMovePuyo(fromArray, toArray) {
@@ -438,8 +424,36 @@ class TurnChange {
   }
 
   init() {
-    this.stage.setMainPuyo();
+    puyoImgList = [];
+    this.setMainPuyo(true);
+    this.setNextPuyo();
   }
+
+  setMainPuyo(isInit = false) {
+    puyoImgList[0] = !isInit ? puyoImgList[1] : [this.makePuyo(), this.makePuyo()];
+    mainPuyo = { 'rotate': 0, '1': [3, 0], '2': [3, 1] };
+    this.stage.setMainPuyo(isInit);
+  }
+
+  setNextPuyo() {
+    puyoImgList[1] = [];
+    let nextPuyoList = [this.makePuyo(), this.makePuyo()];    
+    nextPuyoList.forEach((img, i) => {
+      img.onload = () => { puyoImgList[1][i] = img; };
+    });
+  };
+
+  makePuyo() {
+    let img = new Image();
+    let color = Math.floor(Math.random() * Config.puyoKind) + 1;
+    switch (color) {
+      case 1: img.src = Config.puyoBlueSrc;   break;
+      case 2: img.src = Config.puyoGreenSrc;  break;
+      case 3: img.src = Config.puyoRedSrc;    break;
+      case 4: img.src = Config.puyoYellowSrc;
+    }
+    return img;
+  }  
 
   async execute() {    
     try {
@@ -452,8 +466,9 @@ class TurnChange {
         await this.stage.fallingPuyo();
       }
 
-      // 消し終わったら次のメインぷよを設定
-      this.stage.setMainPuyo();
+      // 消し終わったら次のぷよを設定
+      this.setMainPuyo();
+      this.setNextPuyo();
     } catch(e) {
       // do nothing 
     }
