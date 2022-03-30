@@ -253,60 +253,68 @@ class MoveMainPuyo {
   constructor(keyDown) {
     this.keyDown = keyDown;
     this.currentPuyo = [mainPuyo[1], mainPuyo[2]];
-    this.movedPuyo = this.init();
   }
 
-  init() {
+  getMovedPuyo() {
     let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
     let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
 
     switch (this.keyDown) {
-      case Config.moveDownKey:  return [ [x1, y1 + 1], [x2, y2 + 1] ];
-      case Config.moveRightKey: return [ [x1 + 1, y1], [x2 + 1, y2] ];
-      case Config.moveLeftKey:  return [ [x1 - 1, y1], [x2 - 1, y2] ];
+      case Config.moveDownKey:  return [ [x1, y1+1], [x2, y2+1] ];
+      case Config.moveRightKey: return [ [x1+1, y1], [x2+1, y2] ];
+      case Config.moveLeftKey:  return [ [x1-1, y1], [x2-1, y2] ];
     }
   }
 
   checkStatus() {
+    let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
+    let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
+
+    // 1. 下移動
+    if( this.keyDown == Config.moveDownKey ) {
+      switch ( mainPuyo.rotate ) {
+        case 0 :
+          if ( stage[y2+1][x2] != 0 ) return 'turnChange';
+          break;
+        case 90:
+        case 270:
+          if ( stage[y1+1][x1] != 0 ) return 'turnChange';
+          if ( stage[y2+1][x2] != 0 ) return 'turnChange';
+          break;
+        case 180:
+          if ( stage[y1+1][x1] != 0 ) return 'turnChange';
+      }
+    }
+
+    // 2. 右移動
     if( this.keyDown == Config.moveRightKey ) {
-      if ( ( mainPuyo.rotate == 0 || mainPuyo.rotate == 180 ) &&
-            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
-              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
-         ||
-         ( ( mainPuyo.rotate == 90 &&
-             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) 
-           ||
-           ( mainPuyo.rotate == 270 &&
-             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) ) ) {
-        return 'failed';
+      switch ( mainPuyo.rotate ) {
+        case 0 :
+        case 180 :
+          if ( stage[y1][x1+1] != 0 ) return 'failed';
+          if ( stage[y2][x2+1] != 0 ) return 'failed';
+          break;
+        case 90 :
+          if ( stage[y1][x1+1] != 0 ) return 'failed';
+          break;
+        case 270 :
+          if ( stage[y2][x2+1] != 0 ) return 'failed';
       }
     }
 
-    if( this.keyDown == Config.moveLeftKey ){
-      if ( ( mainPuyo.rotate == 0 || mainPuyo.rotate == 180 ) &&
-            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
-              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
-         ||
-         ( ( mainPuyo.rotate == 90 &&
-             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) 
-           ||
-           ( mainPuyo.rotate == 270 &&
-             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) ) ) {
-        return 'failed';
-      }
-    }
-
-    if( this.keyDown == Config.moveDownKey ){
-      if ( ( mainPuyo.rotate == 90 || mainPuyo.rotate == 270 ) &&
-            ( stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ||
-              stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 )
-         ||
-         ( ( mainPuyo.rotate == 0 &&
-             stage[this.movedPuyo[1][1]][this.movedPuyo[1][0]] != 0 ) 
-           ||
-           ( mainPuyo.rotate == 180 &&
-             stage[this.movedPuyo[0][1]][this.movedPuyo[0][0]] != 0 ) ) ) {
-        return 'turnChange';
+    // 3. 左移動
+    if( this.keyDown == Config.moveLeftKey ) {
+      switch ( mainPuyo.rotate ) {
+        case 0 :
+        case 180 :
+          if ( stage[y1][x1-1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 ) return 'failed';
+          break;
+        case 90 :
+          if ( stage[y2][x2-1] != 0 ) return 'failed';
+          break;
+        case 270 :
+          if ( stage[y1][x1-1] != 0 ) return 'failed';
       }
     }
     return 'succeeded';
@@ -315,13 +323,14 @@ class MoveMainPuyo {
   execute() {
     let stage = new Stage();
     let imgList = stage.getPuyoImgList(this.currentPuyo);
-    stage.setMovePuyo( this.currentPuyo, this.movedPuyo );
+    let movedPuyo = this.getMovedPuyo();
+    stage.setMovePuyo( this.currentPuyo, movedPuyo );
     
-    mainPuyo[1] = this.movedPuyo[0];
-    mainPuyo[2] = this.movedPuyo[1];
+    mainPuyo[1] = movedPuyo[0];
+    mainPuyo[2] = movedPuyo[1];
     
     let animation = new Animation(); 
-    animation.movePuyo(imgList, this.currentPuyo, this.movedPuyo);
+    animation.movePuyo(imgList, this.currentPuyo, movedPuyo);
   }
 }
 
@@ -332,76 +341,92 @@ class RotateMainPuyo {
   constructor(keyDown) {
     this.keyDown = keyDown;
     this.currentPuyo = [mainPuyo[1], mainPuyo[2]];
-    this.rotatedPuyo = this.init();
   }
 
-  init() {
+  getRotatedPuyo(status) {
     let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
     let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
 
-    switch (this.keyDown) {
-      case Config.rotateRightKey:
+    if( this.keyDown == Config.rotateRightKey ) {
+      if( status == 'normal' ) {
         switch (mainPuyo.rotate) {
-          case 0:   return [ [x1 + 1, y1 + 1], [x2, y2] ];
-          case 90:  return [ [x1 - 1, y1 + 1], [x2, y2] ];
-          case 180: return [ [x1 - 1, y1 - 1], [x2, y2] ];
-          case 270: return [ [x1 + 1, y1 - 1], [x2, y2] ];
+          case 0:   return [ [x1+1, y1+1], [x2, y2] ];
+          case 90:  return [ [x1-1, y1+1], [x2, y2] ];
+          case 180: return [ [x1-1, y1-1], [x2, y2] ];
+          case 270: return [ [x1+1, y1-1], [x2, y2] ];
         }
+      }
+      if( status == 'sp1' ) return [ [x1, y1+1], [x2-1, y2] ];
+      if( status == 'sp2' ) return [ [x1-1, y1], [x2, y2-1] ];
+      if( status == 'sp3' ) return [ [x1, y1-1], [x2+1, y2] ];
+    }
 
-      case Config.rotateLeftKey:
+    if( this.keyDown == Config.rotateLeftKey ) {
+      if( status == 'normal' ) {
         switch (mainPuyo.rotate) {
-          case 0:   return [ [x1 - 1, y1 + 1], [x2, y2] ];
-          case 90:  return [ [x1 - 1, y1 - 1], [x2, y2] ];
-          case 180: return [ [x1 + 1, y1 - 1], [x2, y2] ];
-          case 270: return [ [x1 + 1, y1 + 1], [x2, y2] ];
+          case 0:   return [ [x1-1, y1+1], [x2, y2] ];
+          case 90:  return [ [x1-1, y1-1], [x2, y2] ];
+          case 180: return [ [x1+1, y1-1], [x2, y2] ];
+          case 270: return [ [x1+1, y1+1], [x2, y2] ];
         }
+      }
+      if( status == 'sp4' ) return [ [x1, y1+1], [x2+1, y2] ];
+      if( status == 'sp5' ) return [ [x1+1, y1], [x2, y2-1] ];
+      if( status == 'sp6' ) return [ [x1, y1-1], [x2-1, y2] ];
     }
   }
 
   checkStatus() {
-    if( this.keyDown == Config.rotateRightKey ){
-      // 壁蹴りの挙動が考慮されていない
-      if ( ( mainPuyo.rotate == 0 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]-1][this.rotatedPuyo[0][0]] != 0 ) )
-           ||
-           ( mainPuyo.rotate == 90 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]+1] != 0 ) )
-           ||
-           ( mainPuyo.rotate == 180 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]+1][this.rotatedPuyo[0][0]] != 0 ) ) ) {
-        return 'failed';
+    let x1 = mainPuyo[1][0]; let y1 = mainPuyo[1][1];
+    let x2 = mainPuyo[2][0]; let y2 = mainPuyo[2][1];
+
+    if( this.keyDown == Config.rotateRightKey ) {
+      switch ( mainPuyo.rotate ) {
+        case 0 :
+          if ( stage[y1][x1+1] != 0 && stage[y2][x2-1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y2][x2+1] != 0 && stage[y2][x2-1] == 0 ) return 'sp1';
+          break;
+        case 90 :
+          if ( stage[y1+1][x1] != 0 ) return 'sp2';
+          if ( stage[y2+1][x2] != 0 ) return 'sp2';
+          break;
+        case 180 :
+          if ( stage[y1][x1-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y1][x1-1] != 0 && stage[y1][x1+1] == 0 && stage[y2][x2+1] == 0 ) return 'sp3';
       }
     }
 
-    if( this.keyDown == Config.rotateLeftKey ){
-      // 壁蹴りの挙動が考慮されていない
-      if ( ( mainPuyo.rotate == 0 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]-1][this.rotatedPuyo[0][0]] != 0 ) )
-           ||
-           ( mainPuyo.rotate == 270 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]-1] != 0 ) )
-           ||
-           ( mainPuyo.rotate == 180 &&
-             ( stage[this.rotatedPuyo[0][1]][this.rotatedPuyo[0][0]] != 0 ||
-               stage[this.rotatedPuyo[0][1]+1][this.rotatedPuyo[0][0]] != 0 ) ) ) {
-        return 'failed';
+    if( this.keyDown == Config.rotateLeftKey ) {
+      switch ( mainPuyo.rotate ) {
+        case 0 :
+          if ( stage[y1][x1-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 && stage[y2][x2+1] == 0 ) return 'sp4';
+          break;
+        case 270 :
+          if ( stage[y1+1][x1] != 0 ) return 'sp5';
+          if ( stage[y2+1][x2] != 0 ) return 'sp5';
+          break;
+        case 180 :
+          if ( stage[y1][x1+1] != 0 && stage[y2][x2-1] != 0 ) return 'failed';
+          if ( stage[y2][x2-1] != 0 && stage[y2][x2+1] != 0 ) return 'failed';
+          if ( stage[y1][x1+1] != 0 && stage[y1][x1-1] == 0 && stage[y2][x2-1] == 0 ) return 'sp6';
       }
     }
-    return 'succeeded';
+    return 'normal';
   }
 
-  execute() {     
+  execute(status) {
     let stage = new Stage();    
-    let imgList = stage.getPuyoImgList(this.currentPuyo);    
-    stage.setMovePuyo( this.currentPuyo, this.rotatedPuyo );
+    let imgList = stage.getPuyoImgList(this.currentPuyo);
+    let rotatedPuyo = this.getRotatedPuyo(status);
+
+    stage.setMovePuyo( this.currentPuyo, rotatedPuyo );
     
-    mainPuyo[1] = this.rotatedPuyo[0];
-    mainPuyo[2] = this.rotatedPuyo[1];
+    mainPuyo[1] = rotatedPuyo[0];
+    mainPuyo[2] = rotatedPuyo[1];
 
     switch (this.keyDown) {
       case Config.rotateRightKey:
@@ -412,7 +437,7 @@ class RotateMainPuyo {
     }
 
     let animation = new Animation();
-    animation.movePuyo( imgList, this.currentPuyo, this.rotatedPuyo )
+    animation.movePuyo( imgList, this.currentPuyo, rotatedPuyo )
   }
 }
 /*==================
@@ -486,20 +511,22 @@ window.addEventListener('keydown', (e) => {
     case Config.moveRightKey:
     case Config.moveLeftKey:
       let moveMainPuyo = new MoveMainPuyo(e.key);
-      switch (moveMainPuyo.checkStatus()) {
+      let mStatus = moveMainPuyo.checkStatus();
+      switch (mStatus) {
         case 'succeeded':  moveMainPuyo.execute(); return;
-        case 'turnChange': isTurnChange = true;    break;
-        case 'failed':    return;
+        case 'turnChange': isTurnChange = true; break;
+        case 'failed': return;
       }
       break;
     
     case Config.rotateRightKey:
     case Config.rotateLeftKey:
       let rotateMainPuyo = new RotateMainPuyo(e.key);
-      switch (rotateMainPuyo.checkStatus()) {
-        case 'succeeded':  rotateMainPuyo.execute(); return;
-        case 'turnChange': isTurnChange = true;      break;
-        case 'failed':    return;
+      let rStatus = rotateMainPuyo.checkStatus();
+      switch (rStatus) {
+        case 'turnChange': isTurnChange = true; break;
+        case 'failed': return;
+        default: rotateMainPuyo.execute(rStatus); return;
       }
   }
 
@@ -518,24 +545,3 @@ window.addEventListener("load", () => {
   let turnChange = new TurnChange();
   turnChange.init();
 });
-
-/*==================
-	Memo
-====================*/
-// stage2d.fillRect(53.5, 10, 68, 68);
-// stage2d.fillRect(53.5, 83, 68, 68);
-// stage2d.fillRect(53.5, 156, 68, 68);
-// stage2d.fillRect(53.5, 229, 68, 68);
-// stage2d.fillRect(53.5, 302, 68, 68);
-// stage2d.fillRect(53.5, 375, 68, 68);
-// stage2d.fillRect(53.5, 448, 68, 68);
-// stage2d.fillRect(53.5, 521, 68, 68);
-// stage2d.fillRect(53.5, 594, 68, 68);
-// stage2d.fillRect(53.5, 667, 68, 68);
-// stage2d.fillRect(53.5, 740, 68, 68);
-// stage2d.fillRect(53.5, 813, 68, 68);
-// stage2d.fillRect(126.5, 10, 68, 68);
-// stage2d.fillRect(199.5, 10, 68, 68);
-// stage2d.fillRect(272.5, 10, 68, 68);
-// stage2d.fillRect(345.5, 10, 68, 68);
-// stage2d.fillRect(418.5, 10, 68, 68);
